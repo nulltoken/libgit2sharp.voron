@@ -1,0 +1,7 @@
+[submodule "libgit2sharp"]
+	path = libgit2sharp
+	url = https://github.com/nulltoken/libgit2sharp
+
+[submodule "raven.voron"]
+	path = raven.voron
+	url = https://github.com/ayende/raven.voron
