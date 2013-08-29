@@ -12,6 +12,9 @@ namespace LibGit2Sharp.Voron
         private const string MetaPrefix = "meta/";
         private const string DataPrefix = "data/";
 
+        private const int GIT_OK = 0;
+        private const int GIT_ERROR = -1;
+
         private readonly StorageEnvironment _env;
 
         public VoronOdbBackend(string voronDataPath)
@@ -51,7 +54,7 @@ namespace LibGit2Sharp.Voron
                 }
             }
 
-            return 0;
+            return GIT_OK;
         }
 
         public override int ReadPrefix(byte[] shortOid, int prefixLen, out byte[] oid, out Stream data, out ObjectType objectType)
@@ -81,7 +84,7 @@ namespace LibGit2Sharp.Voron
                 tx.Commit();
             }
 
-            return 0;
+            return GIT_OK;
         }
 
         private static string ToDataId(ObjectId id)
