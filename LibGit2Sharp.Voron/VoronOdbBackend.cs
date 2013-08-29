@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Runtime.Serialization.Formatters.Binary;
 using Voron;
 using Voron.Impl;
@@ -104,7 +106,9 @@ namespace LibGit2Sharp.Voron
 
         public override int WriteStream(long length, ObjectType objectType, out OdbBackendStream stream)
         {
-            throw new NotImplementedException();
+            stream = new VoronOdbBackendWriteOnlyStream(this, objectType, length);
+
+            return GIT_OK;
         }
 
         public override bool Exists(ObjectId id)
@@ -127,6 +131,7 @@ namespace LibGit2Sharp.Voron
             {
                 return OdbBackendOperations.Read |
                        OdbBackendOperations.Write |
+                       OdbBackendOperations.WriteStream |
                        OdbBackendOperations.Exists;
             }
         }
@@ -136,6 +141,172 @@ namespace LibGit2Sharp.Voron
         {
             public ObjectType ObjectType { get; set; }
             public long Length { get; set; }
+        }
+
+        private class VoronOdbBackendWriteOnlyStream : OdbBackendStream
+        {
+            private readonly List<byte[]> _chunks = new List<byte[]>();
+
+            private readonly ObjectType _type;
+            private readonly long _length;
+
+            public VoronOdbBackendWriteOnlyStream(VoronOdbBackend backend, ObjectType objectType, long length)
+                : base(backend)
+            {
+                _type = objectType;
+                _length = length;
+            }
+
+            public override bool CanRead
+            {
+                get
+                {
+                    return false;
+                }
+            }
+
+            public override bool CanWrite
+            {
+                get
+                {
+                    return true;
+                }
+            }
+
+            public override int Write(Stream dataStream, long length)
+            {
+                if (length > Int32.MaxValue)
+                    return GIT_ERROR;
+
+                var buffer = new byte[length];
+
+                int bytesRead = dataStream.Read(buffer, 0, (int)length);
+
+                if (bytesRead != (int)length)
+                    return GIT_ERROR;
+
+                _chunks.Add(buffer);
+
+                return GIT_OK;
+            }
+
+            public override int FinalizeWrite(ObjectId oid)
+            {
+                long totalLength = _chunks.Sum(chunk => chunk.Length);
+
+                if (totalLength != _length)
+                {
+                    return GIT_ERROR;
+                }
+
+                //TODO: Drop the the Exists() call when libgit2 #1815 is merged
+                // cf. https://github.com/libgit2/libgit2/pull/1815
+                if (Backend.Exists(oid))
+                {
+                    return GIT_OK;
+                }
+
+                using (Stream stream = new FakeStream(_chunks, _length))
+                {
+                    Backend.Write(oid, stream, _length, _type);
+                }
+
+                return GIT_OK;
+            }
+
+            public override int Read(Stream dataStream, long length)
+            {
+                throw new NotImplementedException();
+            }
+
+            private class FakeStream : Stream
+            {
+                private readonly IList<byte[]> _chunks;
+                private readonly long _length;
+                public int currentChunk = 0;
+                public int currentPos = 0;
+
+                public FakeStream(IList<byte[]> chunks, long length)
+                {
+                    _chunks = chunks;
+                    _length = length;
+                }
+
+                public override void Flush()
+                {
+                    throw new NotImplementedException();
+                }
+
+                public override long Seek(long offset, SeekOrigin origin)
+                {
+                    throw new NotImplementedException();
+                }
+
+                public override void SetLength(long value)
+                {
+                    throw new NotImplementedException();
+                }
+
+                public override int Read(byte[] buffer, int offset, int count)
+                {
+                    var totalCopied = 0;
+
+                    while (totalCopied < count)
+                    {
+                        if (currentChunk > _chunks.Count - 1)
+                        {
+                            return totalCopied;
+                        }
+
+                        var toBeCopied = Math.Min(_chunks[currentChunk].Length - currentPos, count - totalCopied);
+
+                        Buffer.BlockCopy(_chunks[currentChunk], currentPos, buffer, offset + totalCopied, toBeCopied);
+                        currentPos += toBeCopied;
+                        totalCopied += toBeCopied;
+
+                        Debug.Assert(currentPos <= _chunks[currentChunk].Length);
+
+                        if (currentPos == _chunks[currentChunk].Length)
+                        {
+                            currentPos = 0;
+                            currentChunk++;
+                        }
+                    }
+
+                    return totalCopied;
+                }
+
+                public override void Write(byte[] buffer, int offset, int count)
+                {
+                    throw new NotImplementedException();
+                }
+
+                public override bool CanRead
+                {
+                    get { return true; }
+                }
+
+                public override bool CanSeek
+                {
+                    get { throw new NotImplementedException(); }
+                }
+
+                public override bool CanWrite
+                {
+                    get { throw new NotImplementedException(); }
+                }
+
+                public override long Length
+                {
+                    get { return _length; }
+                }
+
+                public override long Position
+                {
+                    get { throw new NotImplementedException(); }
+                    set { throw new NotImplementedException(); }
+                }
+            }
         }
     }
 }

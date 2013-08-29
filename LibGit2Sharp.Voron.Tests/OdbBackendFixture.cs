@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
+using System.Text;
 using Xunit;
 using Xunit.Extensions;
 
@@ -115,6 +116,31 @@ namespace LibGit2Sharp.Voron.Tests
                 AddCommitToRepo(repo);
 
                 AssertGeneratedShas(repo);
+            }
+        }
+
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void CanCreateLargeBlobs(bool isVoronBased)
+        {
+            using (var repo = Build(isVoronBased))
+            {
+                var zeros = new string('0', 128 * 1024 + 3);
+
+                var objectId = new ObjectId("3e7b4813e7b08195c7f59ca8efb6069fc9cf21a7");
+
+                Blob blob;
+                using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(zeros)))
+                {
+                    blob = repo.ObjectDatabase.CreateBlob(stream);
+                    Assert.Equal(objectId, blob.Id);
+                }
+
+                Assert.True(repo.ObjectDatabase.Contains(objectId));
+
+                blob = repo.Lookup<Blob>(objectId);
+                Assert.Equal(zeros, blob.ContentAsText());
             }
         }
     }
