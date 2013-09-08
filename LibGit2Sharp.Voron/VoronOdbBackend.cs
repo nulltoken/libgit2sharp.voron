@@ -238,8 +238,8 @@ namespace LibGit2Sharp.Voron
             {
                 private readonly IList<byte[]> _chunks;
                 private readonly long _length;
-                public int currentChunk = 0;
-                public int currentPos = 0;
+                private int currentChunk = 0;
+                private int currentPos = 0;
 
                 public FakeStream(IList<byte[]> chunks, long length)
                 {
