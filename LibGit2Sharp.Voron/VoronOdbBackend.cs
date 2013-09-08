@@ -11,8 +11,8 @@ namespace LibGit2Sharp.Voron
 {
     public class VoronOdbBackend : OdbBackend
     {
-        private const string MetaPrefix = "meta/";
-        private const string DataPrefix = "data/";
+        private const string Index = "idx";
+        private const string Objects = "obj";
 
         private readonly StorageEnvironment _env;
 
@@ -25,6 +25,13 @@ namespace LibGit2Sharp.Voron
 
             var memoryMapPager = new MemoryMapPager(voronDataPath);
             _env = new StorageEnvironment(memoryMapPager);
+
+            using (var tx = _env.NewTransaction(TransactionFlags.ReadWrite))
+            {
+                _env.CreateTree(tx, Index);
+                _env.CreateTree(tx, Objects);
+                tx.Commit();
+            }
         }
 
         protected override void Dispose()
@@ -37,7 +44,7 @@ namespace LibGit2Sharp.Voron
         {
             using (var tx = _env.NewTransaction(TransactionFlags.Read))
             {
-                using (ReadResult readResult = _env.Root.Read(tx, ToMetaId(id)))
+                using (ReadResult readResult = _env.GetTree(tx, Index).Read(tx, id.Sha))
                 {
                     Debug.Assert(readResult != null);
 
@@ -48,7 +55,7 @@ namespace LibGit2Sharp.Voron
                     data = Allocate(meta.Length);
                 }
 
-                using (ReadResult readResult = _env.Root.Read(tx, ToDataId(id)))
+                using (ReadResult readResult = _env.GetTree(tx, Objects).Read(tx, id.Sha))
                 {
                     readResult.Stream.CopyTo(data);
                 }
@@ -79,22 +86,12 @@ namespace LibGit2Sharp.Voron
                 bf.Serialize(ms, objDescriptor);
                 ms.Seek(0, SeekOrigin.Begin);
 
-                _env.Root.Add(tx, ToMetaId(id), ms);
-                _env.Root.Add(tx, ToDataId(id), dataStream);
+                _env.GetTree(tx, Index).Add(tx, id.Sha, ms);
+                _env.GetTree(tx, Objects).Add(tx, id.Sha, dataStream);
                 tx.Commit();
             }
 
             return (int)ReturnCode.GIT_OK;
-        }
-
-        private static string ToDataId(ObjectId id)
-        {
-            return DataPrefix + id.Sha;
-        }
-
-        private static string ToMetaId(ObjectId id)
-        {
-            return MetaPrefix + id.Sha;
         }
 
         public override int ReadStream(ObjectId id, out OdbBackendStream stream)
@@ -112,7 +109,7 @@ namespace LibGit2Sharp.Voron
         public override bool Exists(ObjectId id)
         {
             using (var tx = _env.NewTransaction(TransactionFlags.Read))
-            using (var stream = _env.Root.Read(tx, ToMetaId(id)))
+            using (var stream = _env.GetTree(tx, Index).Read(tx, id.Sha))
             {
                 return stream != null;
             }
