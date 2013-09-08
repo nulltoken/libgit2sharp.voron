@@ -14,9 +14,6 @@ namespace LibGit2Sharp.Voron
         private const string MetaPrefix = "meta/";
         private const string DataPrefix = "data/";
 
-        private const int GIT_OK = 0;
-        private const int GIT_ERROR = -1;
-
         private readonly StorageEnvironment _env;
 
         public VoronOdbBackend(string voronDataPath)
@@ -35,28 +32,29 @@ namespace LibGit2Sharp.Voron
             _env.Dispose();
             base.Dispose();
         }
+
         public override int Read(ObjectId id, out Stream data, out ObjectType objectType)
         {
             using (var tx = _env.NewTransaction(TransactionFlags.Read))
             {
-                using (var stream = _env.Root.Read(tx, ToMetaId(id)))
+                using (ReadResult readResult = _env.Root.Read(tx, ToMetaId(id)))
                 {
-                    Debug.Assert(stream != null);
+                    Debug.Assert(readResult != null);
 
                     var bf = new BinaryFormatter();
-                    var meta = (ObjectDescriptor)bf.Deserialize(stream);
+                    var meta = (ObjectDescriptor)bf.Deserialize(readResult.Stream);
 
                     objectType = meta.ObjectType;
                     data = Allocate(meta.Length);
                 }
 
-                using (var stream = _env.Root.Read(tx, ToDataId(id)))
+                using (ReadResult readResult = _env.Root.Read(tx, ToDataId(id)))
                 {
-                    stream.CopyTo(data);
+                    readResult.Stream.CopyTo(data);
                 }
             }
 
-            return GIT_OK;
+            return (int)ReturnCode.GIT_OK;
         }
 
         public override int ReadPrefix(byte[] shortOid, int prefixLen, out byte[] oid, out Stream data, out ObjectType objectType)
@@ -86,7 +84,7 @@ namespace LibGit2Sharp.Voron
                 tx.Commit();
             }
 
-            return GIT_OK;
+            return (int)ReturnCode.GIT_OK;
         }
 
         private static string ToDataId(ObjectId id)
@@ -108,7 +106,7 @@ namespace LibGit2Sharp.Voron
         {
             stream = new VoronOdbBackendWriteOnlyStream(this, objectType, length);
 
-            return GIT_OK;
+            return (int)ReturnCode.GIT_OK;
         }
 
         public override bool Exists(ObjectId id)
@@ -175,35 +173,33 @@ namespace LibGit2Sharp.Voron
 
             public override int Write(Stream dataStream, long length)
             {
-                if (length > Int32.MaxValue)
-                    return GIT_ERROR;
-
                 var buffer = new byte[length];
 
-                int bytesRead = dataStream.Read(buffer, 0, (int)length);
+                int bytesRead = dataStream.Read(buffer, 0, Convert.ToInt32(length));
 
                 if (bytesRead != (int)length)
-                    return GIT_ERROR;
+                {
+                    throw new InvalidOperationException(
+                        string.Format("Too short buffer. {0} bytes were expected. {1} have been successfully read.",
+                            length, bytesRead));
+                }
 
                 _chunks.Add(buffer);
 
-                return GIT_OK;
+                return (int)ReturnCode.GIT_OK;
             }
 
             public override int FinalizeWrite(ObjectId oid)
             {
+                //TODO: Drop the check of the size when libgit2 #1837 is merged
                 long totalLength = _chunks.Sum(chunk => chunk.Length);
 
                 if (totalLength != _length)
                 {
-                    return GIT_ERROR;
-                }
-
-                //TODO: Drop the the Exists() call when libgit2 #1815 is merged
-                // cf. https://github.com/libgit2/libgit2/pull/1815
-                if (Backend.Exists(oid))
-                {
-                    return GIT_OK;
+                    throw new InvalidOperationException(
+                        string.Format("Invalid object length. {0} was expected. The "
+                                      + "total size of the received chunks amounts to {1}.",
+                                      _length, totalLength));
                 }
 
                 using (Stream stream = new FakeStream(_chunks, _length))
@@ -211,7 +207,7 @@ namespace LibGit2Sharp.Voron
                     Backend.Write(oid, stream, _length, _type);
                 }
 
-                return GIT_OK;
+                return (int)ReturnCode.GIT_OK;
             }
 
             public override int Read(Stream dataStream, long length)
