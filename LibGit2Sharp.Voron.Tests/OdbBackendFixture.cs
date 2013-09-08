@@ -119,6 +119,14 @@ namespace LibGit2Sharp.Voron.Tests
             }
         }
 
+        private static Blob CreateBlob(Repository repo, string content)
+        {
+            using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(content)))
+            {
+                return repo.ObjectDatabase.CreateBlob(stream);
+            }
+        }
+
         [Theory]
         [InlineData(true)]
         [InlineData(false)]
@@ -130,12 +138,8 @@ namespace LibGit2Sharp.Voron.Tests
 
                 var objectId = new ObjectId("3e7b4813e7b08195c7f59ca8efb6069fc9cf21a7");
 
-                Blob blob;
-                using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(zeros)))
-                {
-                    blob = repo.ObjectDatabase.CreateBlob(stream);
-                    Assert.Equal(objectId, blob.Id);
-                }
+                Blob blob = CreateBlob(repo, zeros);
+                Assert.Equal(objectId, blob.Id);
 
                 Assert.True(repo.ObjectDatabase.Contains(objectId));
 
@@ -154,6 +158,35 @@ namespace LibGit2Sharp.Voron.Tests
                 AddCommitToRepo(repo);
 
                 Assert.Equal(3, repo.ObjectDatabase.Count());
+            }
+        }
+
+        [Theory(Skip = "Requires libgit2 #1841 to be merged")]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void CanLookupByShortObjectId(bool isVoronBased)
+        {
+            /*
+             * $ echo "aabqhq" | git hash-object -t blob --stdin
+             * dea509d0b3cb8ee0650f6ca210bc83f4678851ba
+             * 
+             * $ echo "aaazvc" | git hash-object -t blob --stdin
+             * dea509d097ce692e167dfc6a48a7a280cc5e877e
+             */
+
+            using (var repo = Build(isVoronBased))
+            {
+                Blob blob1 = CreateBlob(repo, "aabqhq\n");
+                Assert.Equal("dea509d0b3cb8ee0650f6ca210bc83f4678851ba", blob1.Sha);
+                Blob blob2 = CreateBlob(repo, "aaazvc\n");
+                Assert.Equal("dea509d097ce692e167dfc6a48a7a280cc5e877e", blob2.Sha);
+                
+                Assert.Equal(2, repo.ObjectDatabase.Count());
+
+                Assert.Throws<AmbiguousSpecificationException>(() => repo.Lookup("dea509d0"));
+
+                Assert.Equal(blob1, repo.Lookup("dea509d0b"));
+                Assert.Equal(blob2, repo.Lookup("dea509d09"));
             }
         }
     }

@@ -66,7 +66,52 @@ namespace LibGit2Sharp.Voron
 
         public override int ReadPrefix(byte[] shortOid, int prefixLen, out byte[] oid, out Stream data, out ObjectType objectType)
         {
-            throw new NotImplementedException();
+            oid = null;
+            data = null;
+            objectType = default(ObjectType);
+
+            ObjectId matchingKey = null;
+            bool moreThanOneMatchingKeyHasBeenFound = false;
+
+            int ret = ForEach(objectId =>
+            {
+                if (!objectId.StartsWith(shortOid, prefixLen))
+                {
+                    return (int)ReturnCode.GIT_OK;
+                }
+
+                if (matchingKey != null)
+                {
+                    moreThanOneMatchingKeyHasBeenFound = true;
+                    return (int)ReturnCode.GIT_EAMBIGUOUS;
+                }
+
+                matchingKey = objectId;
+
+                return (int)ReturnCode.GIT_OK;
+            });
+
+            if (ret != (int)ReturnCode.GIT_OK
+                && ret != (int)ReturnCode.GIT_EUSER)
+            {
+                return ret;
+            }
+
+            if (moreThanOneMatchingKeyHasBeenFound)
+            {
+                return (int) ReturnCode.GIT_EAMBIGUOUS;
+            }
+
+            ret = Read(matchingKey, out data, out objectType);
+
+            if (ret != (int)ReturnCode.GIT_OK)
+            {
+                return ret;
+            }
+
+            oid = matchingKey.RawId;
+
+            return (int)ReturnCode.GIT_OK;
         }
 
         public override int ReadHeader(ObjectId id, out int length, out ObjectType objectType)
@@ -147,6 +192,7 @@ namespace LibGit2Sharp.Voron
             {
                 return OdbBackendOperations.Read |
                        OdbBackendOperations.Write |
+                       OdbBackendOperations.ReadPrefix |
                        OdbBackendOperations.WriteStream |
                        OdbBackendOperations.Exists |
                        OdbBackendOperations.ForEach;
