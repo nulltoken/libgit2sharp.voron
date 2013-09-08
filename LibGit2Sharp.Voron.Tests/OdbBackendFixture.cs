@@ -143,5 +143,18 @@ namespace LibGit2Sharp.Voron.Tests
                 Assert.Equal(zeros, blob.ContentAsText());
             }
         }
+
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void CanEnumerateGitObjects(bool isVoronBased)
+        {
+            using (var repo = Build(isVoronBased))
+            {
+                AddCommitToRepo(repo);
+
+                Assert.Equal(3, repo.ObjectDatabase.Count());
+            }
+        }
     }
 }

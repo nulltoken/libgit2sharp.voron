@@ -117,7 +117,28 @@ namespace LibGit2Sharp.Voron
 
         public override int ForEach(ForEachCallback callback)
         {
-            throw new NotImplementedException();
+            using (var tx = _env.NewTransaction(TransactionFlags.Read))
+            using (var it = _env.GetTree(tx, Index).Iterate(tx))
+            {
+                if (it.Seek(Slice.BeforeAllKeys) == false)
+                {
+                    return (int)ReturnCode.GIT_OK;
+                }
+
+                do
+                {
+                    string sha = it.CurrentKey.ToString();
+
+                    int ret = callback(new ObjectId(sha));
+
+                    if (ret != (int)ReturnCode.GIT_OK)
+                    {
+                        return (int)ReturnCode.GIT_EUSER;
+                    }
+                } while (it.MoveNext());
+            }
+
+            return (int)ReturnCode.GIT_OK;
         }
 
         protected override OdbBackendOperations SupportedOperations
@@ -127,7 +148,8 @@ namespace LibGit2Sharp.Voron
                 return OdbBackendOperations.Read |
                        OdbBackendOperations.Write |
                        OdbBackendOperations.WriteStream |
-                       OdbBackendOperations.Exists;
+                       OdbBackendOperations.Exists |
+                       OdbBackendOperations.ForEach;
             }
         }
 
