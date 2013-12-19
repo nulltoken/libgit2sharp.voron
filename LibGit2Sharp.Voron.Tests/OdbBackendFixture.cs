@@ -40,14 +40,23 @@ namespace LibGit2Sharp.Voron.Tests
                 return repository;
             }
 
+            SetVoronOdbBackend(repository, VoronDataPathFrom(repository));
+
+            return repository;
+        }
+
+        private static void SetVoronOdbBackend(Repository repository, string voronDataPath)
+        {
+            repository.ObjectDatabase.AddBackend(new VoronOdbBackend(voronDataPath), priority: 5);
+        }
+
+        private static string VoronDataPathFrom(Repository repository)
+        {
             var dir = new DirectoryInfo(repository.Info.WorkingDirectory);
 
             string voronDataFilename = string.Format("{0}-voron.data", dir.Name.Substring(0, 7));
             string voronDataPath = Path.Combine(TempPath, voronDataFilename);
-
-            repository.ObjectDatabase.AddBackend(new VoronOdbBackend(voronDataPath), priority: 5);
-
-            return repository;
+            return voronDataPath;
         }
 
         [Theory]
@@ -203,6 +212,34 @@ namespace LibGit2Sharp.Voron.Tests
                 repo.Fetch("origin");
 
                 Assert.Equal(69, repo.ObjectDatabase.Count());
+            }
+        }
+
+        [Fact]
+        public void CanReopenAVoronBackedRepository()
+        {
+            string voronDataPath;
+            string gitDirPath;
+
+            const string blobSha = "dea509d0b3cb8ee0650f6ca210bc83f4678851ba";
+
+            using (var repo = Build(isVoronBased: true))
+            {
+                Blob blob = CreateBlob(repo, "aabqhq\n");
+                Assert.Equal(blobSha, blob.Sha);
+
+                voronDataPath = VoronDataPathFrom(repo);
+                gitDirPath = repo.Info.Path;
+            }
+
+            using (var repo = new Repository(gitDirPath))
+            {
+                Assert.Null(repo.Lookup<Blob>(blobSha));
+
+                SetVoronOdbBackend(repo, voronDataPath);
+
+                var blob = repo.Lookup<Blob>(blobSha);
+                Assert.Equal(blobSha, blob.Sha);
             }
         }
     }
