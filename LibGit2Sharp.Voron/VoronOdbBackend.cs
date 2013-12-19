@@ -234,9 +234,17 @@ namespace LibGit2Sharp.Voron
             {
                 var buffer = new byte[length];
 
-                int bytesRead = dataStream.Read(buffer, 0, Convert.ToInt32(length));
+                int offset = 0, bytesRead;
+                int toRead = Convert.ToInt32(length);
 
-                if (bytesRead != (int)length)
+                do
+                {
+                    toRead -= offset;
+                    bytesRead = dataStream.Read(buffer, offset, toRead);
+                    offset += bytesRead;
+                } while (bytesRead != 0);
+
+                if (offset != (int)length)
                 {
                     throw new InvalidOperationException(
                         string.Format("Too short buffer. {0} bytes were expected. {1} have been successfully read.",
