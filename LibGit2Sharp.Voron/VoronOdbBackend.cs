@@ -5,7 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.Serialization.Formatters.Binary;
 using Voron;
-using Voron.Impl;
+using Voron.Impl.Paging;
 
 namespace LibGit2Sharp.Voron
 {
@@ -23,8 +23,7 @@ namespace LibGit2Sharp.Voron
                 throw new ArgumentNullException("voronDataPath");
             }
 
-            var memoryMapPager = new MemoryMapPager(voronDataPath);
-            _env = new StorageEnvironment(memoryMapPager);
+            _env = new StorageEnvironment(StorageEnvironmentOptions.ForPath(voronDataPath));
 
             using (var tx = _env.NewTransaction(TransactionFlags.ReadWrite))
             {
@@ -44,21 +43,17 @@ namespace LibGit2Sharp.Voron
         {
             using (var tx = _env.NewTransaction(TransactionFlags.Read))
             {
-                using (ReadResult readResult = _env.GetTree(tx, Index).Read(tx, id.Sha))
-                {
-                    Debug.Assert(readResult != null);
+                ReadResult readResult1 = tx.GetTree(Index).Read(tx, id.Sha);
+                Debug.Assert(readResult1 != null);
 
-                    var bf = new BinaryFormatter();
-                    var meta = (ObjectDescriptor)bf.Deserialize(readResult.Stream);
+                var bf = new BinaryFormatter();
+                var meta = (ObjectDescriptor) bf.Deserialize(readResult1.Reader.AsStream());
 
-                    objectType = meta.ObjectType;
-                    data = Allocate(meta.Length);
-                }
+                objectType = meta.ObjectType;
+                data = Allocate(meta.Length);
 
-                using (ReadResult readResult = _env.GetTree(tx, Objects).Read(tx, id.Sha))
-                {
-                    readResult.Stream.CopyTo(data);
-                }
+                ReadResult readResult2 = tx.GetTree(Objects).Read(tx, id.Sha);
+                readResult2.Reader.CopyTo(data);
             }
 
             return (int)ReturnCode.GIT_OK;
@@ -131,8 +126,8 @@ namespace LibGit2Sharp.Voron
                 bf.Serialize(ms, objDescriptor);
                 ms.Seek(0, SeekOrigin.Begin);
 
-                _env.GetTree(tx, Index).Add(tx, id.Sha, ms);
-                _env.GetTree(tx, Objects).Add(tx, id.Sha, dataStream);
+                tx.GetTree(Index).Add(tx, id.Sha, ms);
+                tx.GetTree(Objects).Add(tx, id.Sha, dataStream);
                 tx.Commit();
             }
 
@@ -154,16 +149,16 @@ namespace LibGit2Sharp.Voron
         public override bool Exists(ObjectId id)
         {
             using (var tx = _env.NewTransaction(TransactionFlags.Read))
-            using (var stream = _env.GetTree(tx, Index).Read(tx, id.Sha))
             {
-                return stream != null;
+                var readResult = tx.GetTree(Index).Read(tx, id.Sha);
+                return readResult != null;
             }
         }
 
         public override int ForEach(ForEachCallback callback)
         {
             using (var tx = _env.NewTransaction(TransactionFlags.Read))
-            using (var it = _env.GetTree(tx, Index).Iterate(tx))
+            using (var it = tx.GetTree(Index).Iterate(tx))
             {
                 if (it.Seek(Slice.BeforeAllKeys) == false)
                 {

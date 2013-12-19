@@ -78,7 +78,7 @@ namespace LibGit2Sharp.Voron.Tests
                 //TODO: Maybe lookup of a blob should only trigger read_header()
                 var blob = repo.Lookup<Blob>(objectId);
                 Assert.Equal(content.Length, blob.Size);
-                Assert.Equal(content, blob.ContentAsText());
+                Assert.Equal(content, blob.GetContentText());
             }
         }
 
@@ -144,7 +144,7 @@ namespace LibGit2Sharp.Voron.Tests
                 Assert.True(repo.ObjectDatabase.Contains(objectId));
 
                 blob = repo.Lookup<Blob>(objectId);
-                Assert.Equal(zeros, blob.ContentAsText());
+                Assert.Equal(zeros, blob.GetContentText());
             }
         }
 
@@ -161,7 +161,7 @@ namespace LibGit2Sharp.Voron.Tests
             }
         }
 
-        [Theory(Skip = "Requires libgit2 #1841 to be merged")]
+        [Theory]
         [InlineData(true)]
         [InlineData(false)]
         public void CanLookupByShortObjectId(bool isVoronBased)
