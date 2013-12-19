@@ -16,15 +16,15 @@ DEL "%LibsDir%Voron.*"
 PUSHD "%BaseDir%libgit2sharp"
 "%FrameworkDir%\%FrameworkVersion%\msbuild.exe" "CI-build.msbuild" /target:Build /property:Configuration=%Flavor%
 
-XCOPY ".\LibGit2Sharp\bin\%Flavor%\*.*" "%LibsDir%" /S
-XCOPY ".\LibGit2Sharp\CopyNativeDependencies.targets" "%LibsDir%" /S
+XCOPY ".\LibGit2Sharp\bin\%Flavor%\*.*" "%LibsDir%" /S /Y
+XCOPY ".\LibGit2Sharp\CopyNativeDependencies.targets" "%LibsDir%" /S /Y
 
 POPD
 
 PUSHD "%BaseDir%raven.voron"
 "%FrameworkDir%\%FrameworkVersion%\msbuild.exe" "Voron\Voron.csproj" /property:Configuration=%Flavor%
 
-XCOPY ".\Voron\bin\%Flavor%\*.*" "%LibsDir%" /S
+XCOPY ".\Voron\bin\%Flavor%\*.*" "%LibsDir%" /S /Y
 
 POPD
 
