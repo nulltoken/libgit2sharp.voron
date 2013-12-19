@@ -189,5 +189,21 @@ namespace LibGit2Sharp.Voron.Tests
                 Assert.Equal(blob2, repo.Lookup("dea509d09"));
             }
         }
+
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void CanFetch(bool isVoronBased)
+        {
+            using (var repo = Build(isVoronBased))
+            {
+                Assert.Equal(0, repo.ObjectDatabase.Count());
+
+                repo.Network.Remotes.Add("origin", "https://github.com/libgit2/TestGitRepository");
+                repo.Fetch("origin");
+
+                Assert.Equal(69, repo.ObjectDatabase.Count());
+            }
+        }
     }
 }
