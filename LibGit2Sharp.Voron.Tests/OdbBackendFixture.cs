@@ -192,6 +192,7 @@ namespace LibGit2Sharp.Voron.Tests
                 Assert.Equal(2, repo.ObjectDatabase.Count());
 
                 Assert.Throws<AmbiguousSpecificationException>(() => repo.Lookup("dea509d0"));
+                Assert.Throws<AmbiguousSpecificationException>(() => repo.Lookup("dea509d"));
 
                 Assert.Equal(blob1, repo.Lookup("dea509d0b"));
                 Assert.Equal(blob2, repo.Lookup("dea509d09"));
