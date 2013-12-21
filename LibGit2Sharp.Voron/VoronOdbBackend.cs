@@ -58,46 +58,16 @@ namespace LibGit2Sharp.Voron
             return (int)ReturnCode.GIT_OK;
         }
 
-        private static char FromNibble(int b)
+        public override int ReadPrefix(string shortSha, out ObjectId id, out Stream data, out ObjectType objectType)
         {
-            return (char)('a' - 10 + b + (((b - 10) >> 31) & ('0' - ('a' - 10))));
-        }
-
-        private static Slice BuildPrefix(byte[] bytes, int prefixLen)
-        {
-            // Adapted from http://stackoverflow.com/a/14333437/335418
-
-            var c = new char[prefixLen];
-            int max = prefixLen / 2;
-            for (int i = 0; i < max; i++)
-            {
-                int b = bytes[i] >> 4;
-                c[i * 2] = FromNibble(b);
-                b = bytes[i] & 0xF;
-                c[i * 2 + 1] = FromNibble(b);
-            }
-
-            if ((prefixLen & 1) == 1)
-            {
-                int b = bytes[max] >> 4;
-                c[max * 2] = FromNibble(b);
-            }
-
-            return new string(c);
-        }
-
-        public override int ReadPrefix(byte[] shortOid, int prefixLen, out byte[] oid, out Stream data, out ObjectType objectType)
-        {
-            oid = null;
+            id = null;
             data = null;
             objectType = default(ObjectType);
 
             ObjectId matchingKey = null;
             bool moreThanOneMatchingKeyHasBeenFound = false;
 
-            var prefix = BuildPrefix(shortOid, prefixLen);
-
-            int ret = ForEachInternal(prefix, objectId =>
+            int ret = ForEachInternal((Slice)shortSha, objectId =>
             {
                 if (matchingKey != null)
                 {
@@ -128,7 +98,7 @@ namespace LibGit2Sharp.Voron
                 return ret;
             }
 
-            oid = matchingKey.RawId;
+            id = matchingKey;
 
             return (int)ReturnCode.GIT_OK;
         }
