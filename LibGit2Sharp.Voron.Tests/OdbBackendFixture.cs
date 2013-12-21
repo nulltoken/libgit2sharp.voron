@@ -71,7 +71,6 @@ namespace LibGit2Sharp.Voron.Tests
 
                 var objectId = new ObjectId("9daeafb9864cf43055ae93beb0afd6c7d144bfa4");
 
-                //TODO: This triggers two calls to Exists() Why?
                 Assert.False(repo.ObjectDatabase.Contains(objectId));
                 Assert.Null(repo.Lookup<Blob>(objectId));
 
@@ -193,6 +192,7 @@ namespace LibGit2Sharp.Voron.Tests
                 Assert.Equal(2, repo.ObjectDatabase.Count());
 
                 Assert.Throws<AmbiguousSpecificationException>(() => repo.Lookup("dea509d0"));
+                Assert.Throws<AmbiguousSpecificationException>(() => repo.Lookup("dea509d"));
 
                 Assert.Equal(blob1, repo.Lookup("dea509d0b"));
                 Assert.Equal(blob2, repo.Lookup("dea509d09"));

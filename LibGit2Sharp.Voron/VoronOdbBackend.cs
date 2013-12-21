@@ -5,7 +5,6 @@ using System.IO;
 using System.Linq;
 using System.Runtime.Serialization.Formatters.Binary;
 using Voron;
-using Voron.Impl.Paging;
 
 namespace LibGit2Sharp.Voron
 {
@@ -59,6 +58,34 @@ namespace LibGit2Sharp.Voron
             return (int)ReturnCode.GIT_OK;
         }
 
+        private static char FromNibble(int b)
+        {
+            return (char)('a' - 10 + b + (((b - 10) >> 31) & ('0' - ('a' - 10))));
+        }
+
+        private static Slice BuildPrefix(byte[] bytes, int prefixLen)
+        {
+            // Adapted from http://stackoverflow.com/a/14333437/335418
+
+            var c = new char[prefixLen];
+            int max = prefixLen / 2;
+            for (int i = 0; i < max; i++)
+            {
+                int b = bytes[i] >> 4;
+                c[i * 2] = FromNibble(b);
+                b = bytes[i] & 0xF;
+                c[i * 2 + 1] = FromNibble(b);
+            }
+
+            if ((prefixLen & 1) == 1)
+            {
+                int b = bytes[max] >> 4;
+                c[max * 2] = FromNibble(b);
+            }
+
+            return new string(c);
+        }
+
         public override int ReadPrefix(byte[] shortOid, int prefixLen, out byte[] oid, out Stream data, out ObjectType objectType)
         {
             oid = null;
@@ -68,13 +95,10 @@ namespace LibGit2Sharp.Voron
             ObjectId matchingKey = null;
             bool moreThanOneMatchingKeyHasBeenFound = false;
 
-            int ret = ForEach(objectId =>
-            {
-                if (!objectId.StartsWith(shortOid, prefixLen))
-                {
-                    return (int)ReturnCode.GIT_OK;
-                }
+            var prefix = BuildPrefix(shortOid, prefixLen);
 
+            int ret = ForEachInternal(prefix, objectId =>
+            {
                 if (matchingKey != null)
                 {
                     moreThanOneMatchingKeyHasBeenFound = true;
@@ -155,12 +179,20 @@ namespace LibGit2Sharp.Voron
             }
         }
 
-        public override int ForEach(ForEachCallback callback)
+        private int ForEachInternal(Slice prefix, ForEachCallback callback)
         {
             using (var tx = _env.NewTransaction(TransactionFlags.Read))
             using (var it = tx.GetTree(Index).Iterate(tx))
             {
-                if (it.Seek(Slice.BeforeAllKeys) == false)
+                Slice key = Slice.BeforeAllKeys;
+
+                if (prefix != null)
+                {
+                    it.RequiredPrefix = prefix;
+                    key = prefix;
+                }
+
+                if (it.Seek(key) == false)
                 {
                     return (int)ReturnCode.GIT_OK;
                 }
@@ -179,6 +211,11 @@ namespace LibGit2Sharp.Voron
             }
 
             return (int)ReturnCode.GIT_OK;
+        }
+
+        public override int ForEach(ForEachCallback callback)
+        {
+            return ForEachInternal(null, callback);
         }
 
         protected override OdbBackendOperations SupportedOperations
@@ -235,9 +272,17 @@ namespace LibGit2Sharp.Voron
             {
                 var buffer = new byte[length];
 
-                int bytesRead = dataStream.Read(buffer, 0, Convert.ToInt32(length));
+                int offset = 0, bytesRead;
+                int toRead = Convert.ToInt32(length);
 
-                if (bytesRead != (int)length)
+                do
+                {
+                    toRead -= offset;
+                    bytesRead = dataStream.Read(buffer, offset, toRead);
+                    offset += bytesRead;
+                } while (bytesRead != 0);
+
+                if (offset != (int)length)
                 {
                     throw new InvalidOperationException(
                         string.Format("Too short buffer. {0} bytes were expected. {1} have been successfully read.",
