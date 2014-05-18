@@ -210,8 +210,9 @@ namespace LibGit2Sharp.Voron.Tests
 
                 repo.Network.Remotes.Add("origin", "https://github.com/libgit2/TestGitRepository");
                 repo.Fetch("origin");
+                repo.Fetch("origin", new FetchOptions{ TagFetchMode = TagFetchMode.All });
 
-                Assert.Equal(69, repo.ObjectDatabase.Count());
+                Assert.Equal(70, repo.ObjectDatabase.Count());
             }
         }
 

@@ -42,7 +42,7 @@ namespace LibGit2Sharp.Voron
         {
             using (var tx = _env.NewTransaction(TransactionFlags.Read))
             {
-                ReadResult readResult1 = tx.GetTree(Index).Read(tx, id.Sha);
+                ReadResult readResult1 = tx.State.GetTree(tx, Index).Read(tx, id.Sha);
                 Debug.Assert(readResult1 != null);
 
                 var bf = new BinaryFormatter();
@@ -51,7 +51,7 @@ namespace LibGit2Sharp.Voron
                 objectType = meta.ObjectType;
                 data = Allocate(meta.Length);
 
-                ReadResult readResult2 = tx.GetTree(Objects).Read(tx, id.Sha);
+                ReadResult readResult2 = tx.State.GetTree(tx, Objects).Read(tx, id.Sha);
                 readResult2.Reader.CopyTo(data);
             }
 
@@ -120,8 +120,8 @@ namespace LibGit2Sharp.Voron
                 bf.Serialize(ms, objDescriptor);
                 ms.Seek(0, SeekOrigin.Begin);
 
-                tx.GetTree(Index).Add(tx, id.Sha, ms);
-                tx.GetTree(Objects).Add(tx, id.Sha, dataStream);
+                tx.State.GetTree(tx, Index).Add(tx, id.Sha, ms);
+                tx.State.GetTree(tx, Objects).Add(tx, id.Sha, dataStream);
                 tx.Commit();
             }
 
@@ -144,7 +144,7 @@ namespace LibGit2Sharp.Voron
         {
             using (var tx = _env.NewTransaction(TransactionFlags.Read))
             {
-                var readResult = tx.GetTree(Index).Read(tx, id.Sha);
+                var readResult = tx.State.GetTree(tx, Index).Read(tx, id.Sha);
                 return readResult != null;
             }
         }
@@ -152,7 +152,7 @@ namespace LibGit2Sharp.Voron
         private int ForEachInternal(Slice prefix, ForEachCallback callback)
         {
             using (var tx = _env.NewTransaction(TransactionFlags.Read))
-            using (var it = tx.GetTree(Index).Iterate(tx))
+            using (var it = tx.State.GetTree(tx, Index).Iterate(tx))
             {
                 Slice key = Slice.BeforeAllKeys;
 
