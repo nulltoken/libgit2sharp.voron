@@ -188,7 +188,7 @@ namespace LibGit2Sharp.Voron.Tests
                 Assert.Equal("dea509d0b3cb8ee0650f6ca210bc83f4678851ba", blob1.Sha);
                 Blob blob2 = CreateBlob(repo, "aaazvc\n");
                 Assert.Equal("dea509d097ce692e167dfc6a48a7a280cc5e877e", blob2.Sha);
-                
+
                 Assert.Equal(2, repo.ObjectDatabase.Count());
 
                 Assert.Throws<AmbiguousSpecificationException>(() => repo.Lookup("dea509d0"));
@@ -241,6 +241,41 @@ namespace LibGit2Sharp.Voron.Tests
 
                 var blob = repo.Lookup<Blob>(blobSha);
                 Assert.Equal(blobSha, blob.Sha);
+            }
+        }
+
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void CanShortenObjectIdentifier(bool isVoronBased)
+        {
+            /*
+             * $ echo "aabqhq" | git hash-object -t blob --stdin
+             * dea509d0b3cb8ee0650f6ca210bc83f4678851ba
+             * 
+             * $ echo "aaazvc" | git hash-object -t blob --stdin
+             * dea509d097ce692e167dfc6a48a7a280cc5e877e
+             */
+
+            using (var repo = Build(isVoronBased))
+            {
+                repo.Config.Set("core.abbrev", 4);
+
+                Blob blob1 = CreateBlob(repo, "aabqhq\n");
+                Assert.Equal("dea509d0b3cb8ee0650f6ca210bc83f4678851ba", blob1.Sha);
+
+                Assert.Equal("dea5", repo.ObjectDatabase.ShortenObjectId(blob1));
+                Assert.Equal("dea509d0b3cb", repo.ObjectDatabase.ShortenObjectId(blob1, 12));
+                Assert.Equal("dea509d0b3cb8ee0650f6ca210bc83f4678851b", repo.ObjectDatabase.ShortenObjectId(blob1, 39));
+
+                Blob blob2 = CreateBlob(repo, "aaazvc\n");
+                Assert.Equal("dea509d09", repo.ObjectDatabase.ShortenObjectId(blob2));
+                Assert.Equal("dea509d09", repo.ObjectDatabase.ShortenObjectId(blob2, 4));
+                Assert.Equal("dea509d0b", repo.ObjectDatabase.ShortenObjectId(blob1));
+                Assert.Equal("dea509d0b", repo.ObjectDatabase.ShortenObjectId(blob1, 7));
+
+                Assert.Equal("dea509d0b3cb", repo.ObjectDatabase.ShortenObjectId(blob1, 12));
+                Assert.Equal("dea509d097ce", repo.ObjectDatabase.ShortenObjectId(blob2, 12));
             }
         }
     }

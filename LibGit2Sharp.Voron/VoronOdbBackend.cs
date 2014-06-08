@@ -63,31 +63,13 @@ namespace LibGit2Sharp.Voron
             data = null;
             objectType = default(ObjectType);
 
-            ObjectId matchingKey = null;
-            bool moreThanOneMatchingKeyHasBeenFound = false;
+            ObjectId matchingKey;
 
-            int ret = ForEachInternal((Slice)shortSha, objectId =>
-            {
-                if (matchingKey != null)
-                {
-                    moreThanOneMatchingKeyHasBeenFound = true;
-                    return (int)ReturnCode.GIT_EAMBIGUOUS;
-                }
+            int ret = ExistsPrefix(shortSha, out matchingKey);
 
-                matchingKey = objectId;
-
-                return (int)ReturnCode.GIT_OK;
-            });
-
-            if (ret != (int)ReturnCode.GIT_OK
-                && ret != (int)ReturnCode.GIT_EUSER)
+            if (ret != (int)ReturnCode.GIT_OK)
             {
                 return ret;
-            }
-
-            if (moreThanOneMatchingKeyHasBeenFound)
-            {
-                return (int) ReturnCode.GIT_EAMBIGUOUS;
             }
 
             ret = Read(matchingKey, out data, out objectType);
@@ -150,7 +132,38 @@ namespace LibGit2Sharp.Voron
 
         public override int ExistsPrefix(string shortSha, out ObjectId id)
         {
-            throw new NotImplementedException();
+            id = null;
+
+            ObjectId matchingKey = null;
+            bool moreThanOneMatchingKeyHasBeenFound = false;
+
+            int ret = ForEachInternal(shortSha, objectId =>
+            {
+                if (matchingKey != null)
+                {
+                    moreThanOneMatchingKeyHasBeenFound = true;
+                    return (int)ReturnCode.GIT_EAMBIGUOUS;
+                }
+
+                matchingKey = objectId;
+
+                return (int)ReturnCode.GIT_OK;
+            });
+
+            if (ret != (int)ReturnCode.GIT_OK
+                && ret != (int)ReturnCode.GIT_EUSER)
+            {
+                return ret;
+            }
+
+            if (moreThanOneMatchingKeyHasBeenFound)
+            {
+                return (int)ReturnCode.GIT_EAMBIGUOUS;
+            }
+
+            id = matchingKey;
+
+            return (int)ReturnCode.GIT_OK;
         }
 
         private int ForEachInternal(Slice prefix, ForEachCallback callback)
@@ -201,6 +214,7 @@ namespace LibGit2Sharp.Voron
                        OdbBackendOperations.ReadPrefix |
                        OdbBackendOperations.WriteStream |
                        OdbBackendOperations.Exists |
+                       OdbBackendOperations.ExistsPrefix |
                        OdbBackendOperations.ForEach;
             }
         }
