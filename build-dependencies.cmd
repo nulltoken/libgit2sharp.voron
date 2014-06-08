@@ -14,7 +14,7 @@ DEL "%LibsDir%CopyNativeDependencies.targets"
 DEL "%LibsDir%Voron.*"
 
 PUSHD "%BaseDir%libgit2sharp"
-"%FrameworkDir%\%FrameworkVersion%\msbuild.exe" "CI-build.msbuild" /target:Build /property:Configuration=%Flavor%
+"%FrameworkDir%\%FrameworkVersion%\msbuild.exe" "CI\build.msbuild" /target:Build /property:Configuration=%Flavor%
 
 XCOPY ".\LibGit2Sharp\bin\%Flavor%\*.*" "%LibsDir%" /S /Y
 XCOPY ".\LibGit2Sharp\CopyNativeDependencies.targets" "%LibsDir%" /S /Y

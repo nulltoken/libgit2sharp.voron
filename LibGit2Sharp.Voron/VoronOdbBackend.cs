@@ -8,7 +8,7 @@ using Voron;
 
 namespace LibGit2Sharp.Voron
 {
-    public class VoronOdbBackend : OdbBackend
+    public class VoronOdbBackend : OdbBackend, IDisposable
     {
         private const string Index = "idx";
         private const string Objects = "obj";
@@ -32,13 +32,12 @@ namespace LibGit2Sharp.Voron
             }
         }
 
-        protected override void Dispose()
+        public void Dispose()
         {
             _env.Dispose();
-            base.Dispose();
         }
 
-        public override int Read(ObjectId id, out Stream data, out ObjectType objectType)
+        public override int Read(ObjectId id, out UnmanagedMemoryStream data, out ObjectType objectType)
         {
             using (var tx = _env.NewTransaction(TransactionFlags.Read))
             {
@@ -58,7 +57,7 @@ namespace LibGit2Sharp.Voron
             return (int)ReturnCode.GIT_OK;
         }
 
-        public override int ReadPrefix(string shortSha, out ObjectId id, out Stream data, out ObjectType objectType)
+        public override int ReadPrefix(string shortSha, out ObjectId id, out UnmanagedMemoryStream data, out ObjectType objectType)
         {
             id = null;
             data = null;
@@ -147,6 +146,11 @@ namespace LibGit2Sharp.Voron
                 var readResult = tx.State.GetTree(tx, Index).Read(tx, id.Sha);
                 return readResult != null;
             }
+        }
+
+        public override int ExistsPrefix(string shortSha, out ObjectId id)
+        {
+            throw new NotImplementedException();
         }
 
         private int ForEachInternal(Slice prefix, ForEachCallback callback)
